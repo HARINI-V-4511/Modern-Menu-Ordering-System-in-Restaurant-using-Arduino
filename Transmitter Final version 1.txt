@@ -1,0 +1,216 @@
+#include <RH_ASK.h>
+#include <SPI.h>
+#include <SPFD5408_Adafruit_GFX.h>
+#include <SPFD5408_Adafruit_TFTLCD.h>
+#include <SPFD5408_TouchScreen.h>
+
+const char *msg;
+RH_ASK driver;
+
+// TouchScreen pins
+#define YP A1
+#define XM A2
+#define YM 7
+#define XP 6
+
+#define TS_MINX 125
+#define TS_MINY 85
+#define TS_MAXX 965
+#define TS_MAXY 905
+
+TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
+
+// LCD pins
+#define LCD_CS A3
+#define LCD_CD A2
+#define LCD_WR A1
+#define LCD_RD A0
+#define LCD_RESET A4
+
+Adafruit_TFTLCD tft(LCD_CS, LCD_CD, LCD_WR, LCD_RD, LCD_RESET);
+
+// Colors
+#define BLACK 0x0000
+#define RED 0xF800
+#define GREEN 0x07E0
+#define CYAN 0x07FF
+#define WHITE 0xFFFF
+#define GOLD 0xFEA0
+#define LIME 0x07E0
+
+void drawHome() {
+  tft.fillScreen(WHITE);
+  tft.drawRoundRect(0, 0, 319, 240, 8, WHITE);
+  
+  // Left column
+  tft.fillRoundRect(30, 40, 100, 40, 8, GOLD);
+  tft.drawRoundRect(30, 40, 100, 40, 8, WHITE);
+  tft.fillRoundRect(30, 90, 100, 40, 8, GOLD);
+  tft.drawRoundRect(30, 90, 100, 40, 8, WHITE);
+  tft.fillRoundRect(30, 140, 100, 40, 8, GOLD);
+  tft.drawRoundRect(30, 140, 100, 40, 8, WHITE);
+  
+  // Right column
+  tft.fillRoundRect(180, 40, 100, 40, 8, GOLD);
+  tft.drawRoundRect(180, 40, 100, 40, 8, WHITE);
+  tft.fillRoundRect(180, 90, 100, 40, 8, GOLD);
+  tft.drawRoundRect(180, 90, 100, 40, 8, WHITE);
+  tft.fillRoundRect(180, 140, 100, 40, 8, GOLD);
+  tft.drawRoundRect(180, 140, 100, 40, 8, WHITE);
+  
+  // Bottom buttons
+  tft.fillRoundRect(10, 190, 140, 40, 8, CYAN);
+  tft.drawRoundRect(10, 190, 140, 40, 8, WHITE);
+  tft.fillRoundRect(160, 190, 150, 40, 8, GREEN);
+  tft.drawRoundRect(160, 190, 150, 40, 8, WHITE);
+  
+  // Labels
+  tft.setCursor(60, 0);
+  tft.setTextSize(3);
+  tft.setTextColor(LIME);
+  tft.print(" Menu");
+  
+  tft.setTextSize(2);
+  tft.setTextColor(WHITE);
+  tft.setCursor(37, 47);
+  tft.print(" Dish1");
+  tft.setCursor(37, 97);
+  tft.print(" Dish2");
+  tft.setCursor(37, 147);
+  tft.print(" Dish3");
+  tft.setCursor(187, 47);
+  tft.print(" Dish4");
+  tft.setCursor(187, 97);
+  tft.print(" Dish5");
+  tft.setCursor(187, 147);
+  tft.print(" Dish6");
+  tft.setCursor(15, 197);
+  tft.print("Call Waiter");
+  tft.setCursor(177, 197);
+  tft.print("  Bill");
+}
+
+void setup(void) {
+  Serial.begin(9600);
+  Serial.println("=== Transmitter Ready ===");
+  
+  if (!driver.init())
+    Serial.println("RF FAIL");
+  else
+    Serial.println("RF OK");
+  
+  tft.reset();
+  tft.begin(tft.readID());
+  tft.fillScreen(BLACK);
+  tft.setRotation(1);
+  
+  // Quick loading screen
+  tft.setTextSize(3);
+  tft.setTextColor(WHITE);
+  tft.setCursor(50, 100);
+  tft.print("Loading...");
+  delay(500);
+  
+  tft.fillScreen(BLACK);
+  drawHome();
+  pinMode(13, OUTPUT);
+  
+  Serial.println("Ready!");
+}
+
+#define MINPRESSURE 10
+#define MAXPRESSURE 1000
+
+// Fast transmit - no delays
+void transmit() {
+  driver.send((uint8_t *)msg, strlen(msg));
+  driver.waitPacketSent();
+  Serial.print("TX: ");
+  Serial.println(msg);
+}
+
+// Quick visual feedback
+void flashButton(int x, int y, int w, int h, uint16_t color, const char* label, int labelX, int labelY) {
+  tft.fillRoundRect(x, y, w, h, 8, WHITE);
+  tft.fillRoundRect(x, y, w, h, 8, color);
+  tft.drawRoundRect(x, y, w, h, 8, WHITE);
+  tft.setTextSize(2);
+  tft.setTextColor(WHITE);
+  tft.setCursor(labelX, labelY);
+  tft.print(label);
+}
+
+// Debounce variables
+unsigned long lastPressTime = 0;
+const unsigned long debounceDelay = 200; // 200ms between touches
+
+void loop() {
+  digitalWrite(13, HIGH);
+  TSPoint p = ts.getPoint();
+  digitalWrite(13, LOW);
+  
+  pinMode(XM, OUTPUT);
+  pinMode(YP, OUTPUT);
+  
+  if (p.z > ts.pressureThreshhold && p.z > MINPRESSURE && p.z < MAXPRESSURE) {
+    
+    // Debounce check
+    unsigned long currentTime = millis();
+    if (currentTime - lastPressTime < debounceDelay) {
+      return; // Ignore rapid repeated touches
+    }
+    lastPressTime = currentTime;
+    
+    int mappedX = map(p.x, TS_MINX, TS_MAXX, 0, 320);
+    int mappedY = map(p.y, TS_MINY, TS_MAXY, 0, 240);
+    
+    // Dish1
+    if (mappedX > 30 && mappedX < 130 && mappedY > 40 && mappedY < 80) {
+      msg = "Dish1";
+      transmit();
+      flashButton(30, 40, 100, 40, GOLD, " Dish1", 37, 47);
+    }
+    // Dish2
+    else if (mappedX > 30 && mappedX < 130 && mappedY > 90 && mappedY < 130) {
+      msg = "Dish2";
+      transmit();
+      flashButton(30, 90, 100, 40, GOLD, " Dish2", 37, 97);
+    }
+    // Dish3
+    else if (mappedX > 30 && mappedX < 130 && mappedY > 140 && mappedY < 180) {
+      msg = "Dish3";
+      transmit();
+      flashButton(30, 140, 100, 40, GOLD, " Dish3", 37, 147);
+    }
+    // Dish4
+    else if (mappedX > 180 && mappedX < 280 && mappedY > 40 && mappedY < 80) {
+      msg = "Dish4";
+      transmit();
+      flashButton(180, 40, 100, 40, GOLD, " Dish4", 187, 47);
+    }
+    // Dish5
+    else if (mappedX > 180 && mappedX < 280 && mappedY > 90 && mappedY < 130) {
+      msg = "Dish5";
+      transmit();
+      flashButton(180, 90, 100, 40, GOLD, " Dish5", 187, 97);
+    }
+    // Dish6
+    else if (mappedX > 180 && mappedX < 280 && mappedY > 140 && mappedY < 180) {
+      msg = "Dish6";
+      transmit();
+      flashButton(180, 140, 100, 40, GOLD, " Dish6", 187, 147);
+    }
+    // Call Waiter
+    else if (mappedX > 10 && mappedX < 150 && mappedY > 190 && mappedY < 230) {
+      msg = "Waiter";
+      transmit();
+      flashButton(10, 190, 140, 40, CYAN, "Call Waiter", 15, 197);
+    }
+    // Bill
+    else if (mappedX > 160 && mappedX < 310 && mappedY > 190 && mappedY < 230) {
+      msg = "Bill";
+      transmit();
+      flashButton(160, 190, 150, 40, GREEN, "  Bill", 177, 197);
+    }
+  }
+}
