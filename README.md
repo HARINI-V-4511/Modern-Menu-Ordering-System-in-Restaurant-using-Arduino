@@ -1,6 +1,5 @@
 # Modern-Menu-Ordering-System-in-Restaurant-using-Arduino
 The Modern Menu Ordering System using Arduino is a digital ordering solution for restaurants. It uses an Arduino Uno to manage menu selection and billing through an LCD and buttons. This system reduces waiting time, minimizes errors, and improves efficiency.
-# 🍽️ Modern Menu Ordering System in Restaurant using Arduino
 
 ![Arduino](https://img.shields.io/badge/Platform-Arduino-blue)
 ![Project](https://img.shields.io/badge/Type-Embedded%20System-green)
